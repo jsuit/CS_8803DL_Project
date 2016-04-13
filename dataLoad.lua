@@ -22,6 +22,11 @@ end
 function dataLoader.getVectors(word2vec, style, dimension,vTable)
   print("Loading Vectors")
   local vectors = require 'vectors'.initVectors()
+  local indices = vTable.indxToVocab
+  --for i=1, #indices do
+--	assert(vectors[indices[i]])
+--	vectors[indices[i]]= vectors[indices[i]]:cuda()
+ -- end
   return vectors
 end
 
@@ -48,15 +53,18 @@ local getSeq = function(maxSeqLen, line,vectors)
 
   for i=1,numWords do
     --keep adding to targets until we hit maxSeqLen, then add it to targetsOfTargets and clear out targets
+    local target = torch.Tensor(1)
     if i+1 > numWords then
-      table.insert(targets, vocabToIndx["stop"])  
+	target[1] = vocabToIndx["stop"]
+	table.insert(targets, target:cuda()) 
     else
-      table.insert(targets, vocabToIndx[words[i+1]]) 
+	target[1] = vocabToIndx[words[i+1]]
+      table.insert(targets, target:cuda())
     end
 
     --inputs is a table with num entries == seqLen of size dimensions, where dimensions = v[word]:size(1)
 
-    table.insert(inputs, vectors[words[i]])
+    table.insert(inputs, vectors[words[i]]:cuda())
     table.insert(inputWordsTable, words[i])
 
     if i % maxSeqLen == 0 then

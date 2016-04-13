@@ -1,8 +1,9 @@
 require 'dpnn'
 require 'rnn'
 require 'optim'
+require 'cunn'
 torch.setheaptracking(true)
-torch.setdefaulttensortype('torch.FloatTensor')
+torch.setdefaulttensortype('torch.CudaTensor')
 local dataLoader = require 'dataLoad'
 local grad_clip =5
 local word2vec = false
@@ -20,6 +21,7 @@ local lines = dataTable.lines
 local indexToVocab = dataTable.indxToVocab
 
 local vectors = dataLoader.getVectors(word2vec, style, hiddenSize,dataTable,dataTable)
+
 print("defining Model")
 -- define the model
 local restart = false
@@ -50,6 +52,9 @@ local maxEpoch = 20
 local curEpoch = 1
 collectgarbage()
 params, grad_params = model:getParameters()
+model:cuda()
+criterion:cuda()
+
 collectgarbage()
 collectgarbage()
 local adam_params = {
@@ -66,8 +71,9 @@ local backpropToWord= true
 for i=curEpoch,maxEpoch do
   --for each epoch
   --randomly shuffle lines (paragraphs)
+  torch.setdefaulttensortype('torch.FloatTensor')
   local indices = torch.randperm(#lines)
-
+  torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
   for j=1, indices:size(1) do
 
@@ -103,7 +109,7 @@ for i=curEpoch,maxEpoch do
       --end
       trainLogger:add{['% CE (train set)']=E[1]}
       trainLogger:style{['% CE (train set)'] = '-'}
-      trainLogger:plot()
+      --trainLogger:plot()
       if backpropToWord then
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
@@ -112,10 +118,13 @@ for i=curEpoch,maxEpoch do
       
         assert(#words == #gradTable)
         for i=1, #gradTable do
-          vectors[words[i]]:add(-1*learningRate,model.modules[1].gradInput[i])
+          local vCuda = vectors[words[i]]:cuda()
+          vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
           local norm = vectors[words[i]]:norm()
           if norm > 0 then
-            vectors[words[i]]:div(vectors[words[i]]:norm())
+            	vCuda:div(vCuda:norm())
+		vectors[words[i]] = vCuda:float()
+		--vectors[words[i]]:div(vectors[words[i]]:norm())
           end
         end
 
