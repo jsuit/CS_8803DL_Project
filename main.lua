@@ -109,9 +109,7 @@ for i=curEpoch,maxEpoch do
         assert(wordTable)
         local words= wordTable[k]
         local learningRate = 1e4
-       
       
-        
         assert(#words == #gradTable)
         for i=1, #gradTable do
           vectors[words[i]]:add(-1*learningRate,model.modules[1].gradInput[i])
@@ -132,8 +130,10 @@ for i=curEpoch,maxEpoch do
     collectgarbage()
     dateTable = os.date("*t")
     print("SAVING MODEL")
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour, model)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour, optimState)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour, .."Model", model)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .."OptimState", optimState)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour, .."LearnedVectors.txt")
+    collectgarbage()
     collectgarbage()
   end
 
