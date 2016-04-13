@@ -98,9 +98,9 @@ for i=curEpoch,maxEpoch do
       end
       _, E = optim.adam(eval,params, adam_params)
       prevError = prevError + E[1]
-      if E[1] < 50 then
-        require 'mobdebug'.start()
-      end
+      --if E[1] < 50 then
+        --require 'mobdebug'.start()
+      --end
       trainLogger:add{['% CE (train set)']=E[1]}
       trainLogger:style{['% CE (train set)'] = '-'}
       trainLogger:plot()
