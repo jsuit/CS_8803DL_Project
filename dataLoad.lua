@@ -21,7 +21,7 @@ end
 
 function dataLoader.getVectors(word2vec, style, dimension,vTable)
   print("Loading Vectors")
-  local vectors = require 'vectors'.initVectors(word2vec, style,dimension,vTable)
+  local vectors = require 'vectors'.initVectors()
   return vectors
 end
 
