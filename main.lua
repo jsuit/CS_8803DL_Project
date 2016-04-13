@@ -109,6 +109,9 @@ for i=curEpoch,maxEpoch do
         assert(wordTable)
         local words= wordTable[k]
         local learningRate = 1e4
+       
+      
+        
         assert(#words == #gradTable)
         for i=1, #gradTable do
           vectors[words[i]]:add(-1*learningRate,model.modules[1].gradInput[i])

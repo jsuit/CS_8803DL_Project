@@ -28,6 +28,9 @@ end
 local getSeq = function(maxSeqLen, line,vectors)
   local seqOfSequences = {}
   local words = line --pl.split(line)
+  if words[1] == "" then
+    table.remove(words,1)
+  end
   local inputWordsTable = {}
   local tableOfWords = {}
   inputWordsTable = {}
@@ -42,34 +45,38 @@ local getSeq = function(maxSeqLen, line,vectors)
   local indexToVocab = dataLoader.indexToVocab
   assert(indexToVocab)
   assert(vocabToIndx)
-  
+
   for i=1,numWords do
     --keep adding to targets until we hit maxSeqLen, then add it to targetsOfTargets and clear out targets
     if i+1 > numWords then
       table.insert(targets, vocabToIndx["stop"])  
     else
-       table.insert(targets, vocabToIndx[words[i+1]]) 
+      table.insert(targets, vocabToIndx[words[i+1]]) 
     end
-    
+
     --inputs is a table with num entries == seqLen of size dimensions, where dimensions = v[word]:size(1)
+
     table.insert(inputs, vectors[words[i]])
     table.insert(inputWordsTable, words[i])
-    
+
     if i % maxSeqLen == 0 then
       table.insert(tableOfWords, inputWordsTable)
       table.insert(seqOfSequences,inputs)
-     
+    
       --local j = 0;
       --targetsTensor:apply(function() j=j+1; return targets[j] end)
       --targetsTensor:resize(#targets)
       table.insert(targetsOfTargets,targets)
+      assert(#inputWordsTable == #inputs)
+      assert(#inputs == #targets)
       --clear inputs
       inputs = {}
       targets ={}
       inputWordsTable ={}
+    
       collectgarbage()
-    end
 
+    end
   end
 
   --sanity check
@@ -81,6 +88,7 @@ local getSeq = function(maxSeqLen, line,vectors)
     table.insert(seqOfSequences,inputs)
     table.insert(targetsOfTargets,targets)
     table.insert(tableOfWords,inputWordsTable)
+
   end
   assert(#seqOfSequences == #targetsOfTargets)
   assert(#targetsOfTargets == #tableOfWords)
