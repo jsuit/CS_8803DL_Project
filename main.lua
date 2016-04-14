@@ -41,7 +41,7 @@ else
   model:add(nn.Sequencer(nn.LogSoftMax()))
   criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 end
---model:remember('both')
+model:remember('both')
 
 
 local batchsize = 1
@@ -63,6 +63,7 @@ local adam_params = {
   weightDecay = 0,
   momentum = 0
 }
+local wordOptim = {learningrAte=1e-2}
 optimState = adam_params
 local dateTable = os.date("*t")
 local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour)
@@ -77,8 +78,9 @@ for i=curEpoch,maxEpoch do
   local indices = torch.randperm(#lines)
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
+print("NUMLines = " .. tostring(indices:size(1)))
   for j=1, indices:size(1) do
-
+	print("current line = " .. tostring(j))
     local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, lines[j],vectors)
     local seqOfSeq = dataTable.data
     local seqOfTargets = dataTable.targets
@@ -90,7 +92,10 @@ for i=curEpoch,maxEpoch do
     -- from jth line.
     -- if the last seqOfSeq might be less than maxSeqLen we could make
     -- if #words in lines[j] < maxSeqLen, then #seqOfSeq =1 and seqOfSeq[1] == #words in lines[j]
-    for k =1, #seqOfSeq do
+	print("seqOfSeq= " .. tostring(#seqOfSeq)) 
+
+   for k =1, #seqOfSeq do
+
 
       local eval = function(x)
         collectgarbage()
@@ -117,16 +122,19 @@ for i=curEpoch,maxEpoch do
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
         local words= wordTable[k]
-        local learningRate = 1e4
+        local learningRate = 1e-4
       
         assert(#words == #gradTable)
         for i=1, #gradTable do
-          local vCuda = vectors[words[i]]:cuda()
-          vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
+        local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
+	--local vCuda = vectors[words[i]]:cuda()
+	  optim.adam(fevalWord,vectors[words[i]],wordOptim)	  
+          --vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
           local norm = vectors[words[i]]:norm()
           if norm > 0 then
-            	vCuda:div(vCuda:norm())
-		vectors[words[i]] = vCuda:float()
+            	--vCuda:div(vCuda:norm())
+		vectors[words[i]]:div(norm)
+		--vectors[words[i]] = vCuda:float()
 		--vectors[words[i]]:div(vectors[words[i]]:norm())
           end
         end
