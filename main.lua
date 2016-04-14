@@ -69,6 +69,8 @@ local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.
 local prevError = 0
 local backpropToWord= true
 for i=curEpoch,maxEpoch do
+  print("EPOCH: " .. tostring(i))
+  local timer = torch.Timer()
   --for each epoch
   --randomly shuffle lines (paragraphs)
   torch.setdefaulttensortype('torch.FloatTensor')
@@ -133,7 +135,7 @@ for i=curEpoch,maxEpoch do
 
     end
   end
-
+  print("Epoch " .. tostring(i) .." took " .. timer.time().real .. " seconds")
   if prevError > curError or prevError == 0 then
     model:clearState()
     collectgarbage()
