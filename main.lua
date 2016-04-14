@@ -104,8 +104,9 @@ for i=curEpoch,maxEpoch do
 
         return err, grad_params
       end
+      print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.t)) 
       _, E = optim.adam(eval,params, adam_params)
-      prevError = prevError + E[1]
+      curError = curError+ E[1]
       --if E[1] < 50 then
         --require 'mobdebug'.start()
       --end
@@ -138,6 +139,7 @@ for i=curEpoch,maxEpoch do
   print("Epoch " .. tostring(i) .." took " .. timer.time().real .. " seconds")
   if prevError > curError or prevError == 0 then
     model:clearState()
+    prevError = curError
     collectgarbage()
     dateTable = os.date("*t")
     print("SAVING MODEL")
