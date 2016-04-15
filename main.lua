@@ -7,7 +7,7 @@ local dataLoader = require 'dataLoad'
 local grad_clip =5
 local word2vec = false
 local style = "random"
-
+torch.setnumthreads(32)
 local batchSize = 1
 
 local hiddenSize = 300
@@ -44,7 +44,7 @@ end
 
 local batchsize = 1
 local lineNum = 1
-local maxSeqLen = 32
+local maxSeqLen = 8
 
 local maxEpoch = 20
 local curEpoch = 1
@@ -103,8 +103,8 @@ for i=curEpoch,maxEpoch do
         --require 'mobdebug'.start()
       --end
       trainLogger:add{['% CE (train set)']=E[1]}
-      trainLogger:style{['% CE (train set)'] = '-'}
-      trainLogger:plot()
+      --trainLogger:style{['% CE (train set)'] = '-'}
+      --trainLogger:plot()
       if backpropToWord then
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
