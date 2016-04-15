@@ -3,6 +3,7 @@ require 'rnn'
 require 'optim'
 require 'cunn'
 torch.setheaptracking(true)
+torch.manualSeed(0)
 torch.setdefaulttensortype('torch.CudaTensor')
 local dataLoader = require 'dataLoad'
 local grad_clip =3
