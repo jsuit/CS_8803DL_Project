@@ -58,15 +58,15 @@ criterion:cuda()
 collectgarbage()
 collectgarbage()
 local adam_params = {
-  learningRate = 1e-3,
-  learningRateDecay = 0,
-  weightDecay = 0,
-  momentum = 0
+  learningRate = 1e-4,
+  learningRateDecay = 1e-6,
+  weightDecay = 1e-5,
+  momentum = .9
 }
 local wordOptim = {learningrAte=1e-2}
 optimState = adam_params
 local dateTable = os.date("*t")
-local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour)
+local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "SGD_8Seq.log")
 local prevError = 0
 local backpropToWord= true
 for i=curEpoch,maxEpoch do
@@ -151,9 +151,9 @@ print("NUMLines = " .. tostring(indices:size(1)))
     collectgarbage()
     dateTable = os.date("*t")
     print("SAVING MODEL")
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model", model)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState" , optimState)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectors.txt", vectors)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model_SGD_8seq", model)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState_SGD_8seq" , optimState)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectors_SGD_8Seq.txt", vectors)
     collectgarbage()
     collectgarbage()
   end
