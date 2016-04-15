@@ -3,10 +3,10 @@ require 'rnn'
 require 'optim'
 require 'cunn'
 torch.setheaptracking(true)
-torch.manualSeed(0)
+torch.manualSeed(1)
 torch.setdefaulttensortype('torch.CudaTensor')
 local dataLoader = require 'dataLoad'
-local grad_clip =3
+local grad_clip =5
 local word2vec = false
 local style = "random"
 
@@ -16,12 +16,16 @@ local hiddenSize = 300
 
 local dataTable = dataLoader.getData()
 assert(dataTable)
-local indxToVocab = dataTable.indxToVocab
-local nIndex = #indxToVocab
+local vocabToIndx = dataTable.vocabToIndx
 local lines = dataTable.lines
-local indexToVocab = dataTable.indxToVocab
-
+local indxToVocab = dataTable.indxToVocab
+local numVocab = #indxToVocab
+local nIndex = numVocab
 local vectors = dataLoader.getVectors(word2vec, style, hiddenSize,dataTable,dataTable)
+for i=1,#indxToVocab do
+	vectors[indxToVocab[i]] = vectors[indxToVocab[i]]:cuda()
+end
+
 
 print("defining Model")
 -- define the model
@@ -59,7 +63,7 @@ criterion:cuda()
 collectgarbage()
 collectgarbage()
 local adam_params = {
-  learningRate = 1e-4,
+  learningRate = 1e-3,
   learningRateDecay = 1e-5,
   weightDecay =1e-5,
   momentum = .95
@@ -70,9 +74,13 @@ learningRate = 1e-2,
   weightDecay =1e-5,
   momentum = .95
 }
+
 optimState = adam_params
+local optimMethod = optim.adam
 local dateTable = os.date("*t")
-local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "M2090_8Seq_SGD.log")
+local fileName = "M2090_8Seq_ADAM.log"
+local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. fileName ..".log")
+--local vWrite = assert(io.open("logs/LearnedVectors_".. fileName .. ".csv","a"))
 local prevError = 0
 local backpropToWord= true
 for i=curEpoch,maxEpoch do
@@ -84,10 +92,11 @@ for i=curEpoch,maxEpoch do
   local indices = torch.randperm(#lines)
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
+  local seenVocab={}
 print("NUMLines = " .. tostring(indices:size(1)))
   for j=1, indices:size(1) do
 	print("current line = " .. tostring(j))
-    local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, lines[j],vectors)
+    local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, lines[indices[j]],vectors)
     local seqOfSeq = dataTable.data
     local seqOfTargets = dataTable.targets
     local wordTable
@@ -98,7 +107,7 @@ print("NUMLines = " .. tostring(indices:size(1)))
     -- from jth line.
     -- if the last seqOfSeq might be less than maxSeqLen we could make
     -- if #words in lines[j] < maxSeqLen, then #seqOfSeq =1 and seqOfSeq[1] == #words in lines[j]
-	print("seqOfSeq= " .. tostring(#seqOfSeq)) 
+--	print("seqOfSeq= " .. tostring(#seqOfSeq)) 
 
    for k =1, #seqOfSeq do
       local eval = function(x)
@@ -109,12 +118,16 @@ print("NUMLines = " .. tostring(indices:size(1)))
         local err = criterion(output,seqOfTargets[k])
         model:backward(data, criterion:backward(output, seqOfTargets[k]))
         grad_params:clamp(-grad_clip, grad_clip)
-        print(err)
+        --print(err)
 
         return err, grad_params
       end
-      print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.t)) 
-      _, E = optim.adam(eval,params, adam_params)
+      
+      _, E = optimMethod(eval,params, adam_params)
+      if adam_params.t ~= nil and adam_params.t % 2 == 0 then
+                print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.t))
+		print("Error " .. tostring(E[1]))
+      end
       curError = curError+ E[1]
       --if E[1] < 50 then
         --require 'mobdebug'.start()
@@ -123,6 +136,7 @@ print("NUMLines = " .. tostring(indices:size(1)))
       trainLogger:style{['% CE (train set)'] = '-'}
       --trainLogger:plot()
       if backpropToWord then
+	collectgarbage()
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
         local words= wordTable[k]
@@ -130,21 +144,34 @@ print("NUMLines = " .. tostring(indices:size(1)))
         assert(#words == #gradTable)
         for i=1, #gradTable do
         --local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
-	--local vCuda = vectors[words[i]]:cuda()
-	  optim.adam(function(x) return 0,gradTable[i]:float()end,vectors[words[i]],wordOptim)	  
+	 local vCuda = vectors[words[i]]
+	  optimMethod(function(x) return 0,gradTable[i] end,vCuda,wordOptim)	  
           --vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
-          local norm = vectors[words[i]]:norm()
-          if norm > 0 then
-            	--vCuda:div(vCuda:norm())
-		vectors[words[i]]:div(norm)
-		--vectors[words[i]] = vCuda:float()
-		--vectors[words[i]]:div(vectors[words[i]]:norm())
+        
+          vCuda:div(vCuda:norm())
+          vectors[words[i]] = vCuda
+	 --vectors[words[i]]:div(vectors[words[i]]:norm())
+          if vocabToIndx[words[i]] ~= nil then
+		if seenVocab[words[i]] == nil then seenVocab[words[i]] = 1
+                else seenVocab[words[i]] = seenVocab[words[i]] + 1
+	        end
           end
-        end
+	  if #seenVocab == numVocab then
+		csvigo.save({path="LearnedVectors_" .. tostring(i) .. "_" .. tostring(optimState.t) .. ".csv",data=vectors})
+	 	seenVocab = {} 
+		collectgarbage()
+	 end
+	  if #seenVocab == .5*numVocab then
+		print("SEEN 1/2 of all VOCAB")
+         end
+	 if #seenVocab	== .25*numVocab then
+		print("SEEN 1/4 of all VOCAB")
+	 end 
 
 
       end
 
+    end
     end
   end
   print("Epoch " .. tostring(i) .." took " .. timer.time().real .. " seconds")
@@ -154,9 +181,9 @@ print("NUMLines = " .. tostring(indices:size(1)))
     collectgarbage()
     dateTable = os.date("*t")
     print("SAVING MODEL")
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model_Cuda_8_M2090_ADAM", model)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState_Cuda_8_M2090_ADAM" , optimState)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectorsCuda_M2090_ADAM_8seq.txt", vectors)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model"..fileName, model)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState"..fileName , optimState)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectorsEpoch" .. tostring(i) .. ".txt", vectors)
     collectgarbage()
     collectgarbage()
   end
