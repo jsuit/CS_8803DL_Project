@@ -5,7 +5,7 @@ require 'cunn'
 torch.setheaptracking(true)
 torch.setdefaulttensortype('torch.CudaTensor')
 local dataLoader = require 'dataLoad'
-local grad_clip =5
+local grad_clip =3
 local word2vec = false
 local style = "random"
 
@@ -46,7 +46,7 @@ model:remember('both')
 
 local batchsize = 1
 local lineNum = 1
-local maxSeqLen = 32
+local maxSeqLen = 8
 
 local maxEpoch = 20
 local curEpoch = 1
@@ -58,15 +58,20 @@ criterion:cuda()
 collectgarbage()
 collectgarbage()
 local adam_params = {
-  learningRate = 1e-3,
-  learningRateDecay = 0,
-  weightDecay = 0,
-  momentum = 0
+  learningRate = 1e-4,
+  learningRateDecay = 1e-5,
+  weightDecay =1e-5,
+  momentum = .95
 }
-local wordOptim = {learningrAte=1e-2}
+local wordOptim = {
+learningRate = 1e-2,
+  learningRateDecay = 1e-5,
+  weightDecay =1e-5,
+  momentum = .95
+}
 optimState = adam_params
 local dateTable = os.date("*t")
-local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour)
+local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "M2090_8Seq_SGD.log")
 local prevError = 0
 local backpropToWord= true
 for i=curEpoch,maxEpoch do
@@ -95,8 +100,6 @@ print("NUMLines = " .. tostring(indices:size(1)))
 	print("seqOfSeq= " .. tostring(#seqOfSeq)) 
 
    for k =1, #seqOfSeq do
-
-
       local eval = function(x)
         collectgarbage()
         grad_params:zero()
@@ -122,13 +125,12 @@ print("NUMLines = " .. tostring(indices:size(1)))
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
         local words= wordTable[k]
-        local learningRate = 1e-4
       
         assert(#words == #gradTable)
         for i=1, #gradTable do
-        local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
+        --local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
 	--local vCuda = vectors[words[i]]:cuda()
-	  optim.adam(fevalWord,vectors[words[i]],wordOptim)	  
+	  optim.adam(function(x) return 0,gradTable[i]:float()end,vectors[words[i]],wordOptim)	  
           --vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
           local norm = vectors[words[i]]:norm()
           if norm > 0 then
@@ -151,9 +153,9 @@ print("NUMLines = " .. tostring(indices:size(1)))
     collectgarbage()
     dateTable = os.date("*t")
     print("SAVING MODEL")
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model", model)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState" , optimState)
-    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectors.txt", vectors)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "Model_Cuda_8_M2090_ADAM", model)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. "OptimState_Cuda_8_M2090_ADAM" , optimState)
+    torch.save("models/" .. tostring(curEpoch) .. "_" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour.."LearnedVectorsCuda_M2090_ADAM_8seq.txt", vectors)
     collectgarbage()
     collectgarbage()
   end
