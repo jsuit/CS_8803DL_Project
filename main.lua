@@ -58,6 +58,7 @@ local adam_params = {
   weightDecay = 0,
   momentum = 0
 }
+local wordParams ={learningRate=1e-3}
 optimState = adam_params
 local dateTable = os.date("*t")
 local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour)
@@ -108,15 +109,15 @@ for i=curEpoch,maxEpoch do
         local gradTable = model.modules[1].gradInput
         assert(wordTable)
         local words= wordTable[k]
-        local learningRate = 1e4
       
         assert(#words == #gradTable)
         for i=1, #gradTable do
-          vectors[words[i]]:add(-1*learningRate,model.modules[1].gradInput[i])
-          local norm = vectors[words[i]]:norm()
-          if norm > 0 then
-            vectors[words[i]]:div(vectors[words[i]]:norm())
-          end
+	  local word = vectors[words[i]]
+	  assert(gradTable[i])
+          optim.adam(function(x) return 0,gradTable[i] end ,word, wordParams)  
+	--vectors[words[i]]:add(-1*learningRate,model.modules[1].gradInput[i])
+          vectors[words[i]]= word:div(word:norm())
+         
         end
 
 
