@@ -58,7 +58,7 @@ criterion:cuda()
 collectgarbage()
 collectgarbage()
 local adam_params = {
-  learningRate = 1e-4,
+  learningRate = 1e-3,
   learningRateDecay = 1e-6,
   weightDecay = 1e-5,
   momentum = .9
@@ -109,8 +109,8 @@ print("NUMLines = " .. tostring(indices:size(1)))
 
         return err, grad_params
       end
-      print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.t)) 
-      _, E = optim.adam(eval,params, adam_params)
+      print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.evalCounter)) 
+      _, E = optim.sgd(eval,params, adam_params)
       curError = curError+ E[1]
       --if E[1] < 50 then
         --require 'mobdebug'.start()
@@ -128,7 +128,7 @@ print("NUMLines = " .. tostring(indices:size(1)))
         for i=1, #gradTable do
         local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
 	--local vCuda = vectors[words[i]]:cuda()
-	  optim.adam(fevalWord,vectors[words[i]],wordOptim)	  
+	  optim.sgd(fevalWord,vectors[words[i]],wordOptim)	  
           --vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
           local norm = vectors[words[i]]:norm()
           if norm > 0 then
