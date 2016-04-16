@@ -2,6 +2,7 @@ require 'dpnn'
 require 'rnn'
 require 'optim'
 require 'cunn'
+require 'cutorch'
 torch.setheaptracking(true)
 torch.manualSeed(1)
 torch.setdefaulttensortype('torch.CudaTensor')
@@ -9,7 +10,15 @@ local dataLoader = require 'dataLoad'
 local grad_clip =5
 local word2vec = false
 local style = "random"
-
+local threads = require 'threads'
+local nthread = 4
+local pool = threads.Threads(
+  nthread,
+  function(threadid)
+    require 'cunn'
+  end
+)
+local trainFunc = require 'trainFunc'
 local batchSize = 1
 
 local hiddenSize = 300
@@ -23,7 +32,7 @@ local numVocab = #indxToVocab
 local nIndex = numVocab
 local vectors = dataLoader.getVectors(word2vec, style, hiddenSize,dataTable,dataTable)
 for i=1,#indxToVocab do
-	vectors[indxToVocab[i]] = vectors[indxToVocab[i]]:cuda()
+  vectors[indxToVocab[i]] = vectors[indxToVocab[i]]:cuda()
 end
 
 
@@ -69,7 +78,7 @@ local adam_params = {
   momentum = .95
 }
 local wordOptim = {
-learningRate = 1e-2,
+  learningRate = 1e-2,
   learningRateDecay = 1e-5,
   weightDecay =1e-5,
   momentum = .95
@@ -93,86 +102,20 @@ for i=curEpoch,maxEpoch do
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
   local seenVocab={}
-print("NUMLines = " .. tostring(indices:size(1)))
+  print("NUMLines = " .. tostring(indices:size(1)))
   for j=1, indices:size(1) do
-	print("current line = " .. tostring(j))
-    local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, lines[indices[j]],vectors)
-    local seqOfSeq = dataTable.data
-    local seqOfTargets = dataTable.targets
-    local wordTable
-    if backpropToWord then
-      wordTable = dataTable.words
-    end
-    --for each line get seq of sequences. #seqOfSeq tells us how many sequences of maxSeqLen we could make
-    -- from jth line.
-    -- if the last seqOfSeq might be less than maxSeqLen we could make
-    -- if #words in lines[j] < maxSeqLen, then #seqOfSeq =1 and seqOfSeq[1] == #words in lines[j]
---	print("seqOfSeq= " .. tostring(#seqOfSeq)) 
-
-   for k =1, #seqOfSeq do
-      local eval = function(x)
-        collectgarbage()
-        grad_params:zero()
-        local data = seqOfSeq[k]
-        local output = model:forward(data)
-        local err = criterion(output,seqOfTargets[k])
-        model:backward(data, criterion:backward(output, seqOfTargets[k]))
-        grad_params:clamp(-grad_clip, grad_clip)
-        --print(err)
-
-        return err, grad_params
+    print("current line = " .. tostring(j))
+    local paragraphs=  lines[indices[j]]
+    pool:addjob(
+      function()
+        local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, paragraphs,vectors)
+        return dataTable
+      end,
+      function(dataTable)
+        trainFunc(dataTable)
       end
-      
-      _, E = optimMethod(eval,params, adam_params)
-      if adam_params.t ~= nil and adam_params.t % 2 == 0 then
-                print("Epoch " .. tostring(i) .. " iteration " .. tostring(adam_params.t))
-		print("Error " .. tostring(E[1]))
-      end
-      curError = curError+ E[1]
-      --if E[1] < 50 then
-        --require 'mobdebug'.start()
-      --end
-      trainLogger:add{['% CE (train set)']=E[1]}
-      trainLogger:style{['% CE (train set)'] = '-'}
-      --trainLogger:plot()
-      if backpropToWord then
-	collectgarbage()
-        local gradTable = model.modules[1].gradInput
-        assert(wordTable)
-        local words= wordTable[k]
-      
-        assert(#words == #gradTable)
-        for i=1, #gradTable do
-        --local fevalWord = function() return 0,model.modules[1].gradInput[i]:float()end  
-	 local vCuda = vectors[words[i]]
-	  optimMethod(function(x) return 0,gradTable[i] end,vCuda,wordOptim)	  
-          --vCuda:add(-1*learningRate,model.modules[1].gradInput[i])
-        
-          vCuda:div(vCuda:norm())
-          vectors[words[i]] = vCuda
-	 --vectors[words[i]]:div(vectors[words[i]]:norm())
-          if vocabToIndx[words[i]] ~= nil then
-		if seenVocab[words[i]] == nil then seenVocab[words[i]] = 1
-                else seenVocab[words[i]] = seenVocab[words[i]] + 1
-	        end
-          end
-	  if #seenVocab == numVocab then
-		csvigo.save({path="LearnedVectors_" .. tostring(i) .. "_" .. tostring(optimState.t) .. ".csv",data=vectors})
-	 	seenVocab = {} 
-		collectgarbage()
-	 end
-	  if #seenVocab == .5*numVocab then
-		print("SEEN 1/2 of all VOCAB")
-         end
-	 if #seenVocab	== .25*numVocab then
-		print("SEEN 1/4 of all VOCAB")
-	 end 
-
-
-      end
-
-    end
-    end
+    )
+    cutorch.synchronize()
   end
   print("Epoch " .. tostring(i) .." took " .. timer.time().real .. " seconds")
   if prevError > curError or prevError == 0 then
