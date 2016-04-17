@@ -92,16 +92,18 @@ for i=curEpoch,maxEpoch do
   print("EPOCH: " .. tostring(i))
   local timer = torch.Timer()
   --for each epoch
+   torch.setdefaulttensortype('torch.FloatTensor')
+   local indices = torch.randperm(#lines-1)
   --randomly shuffle lines (paragraphs)
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
   print("NUMLines = " ..#lines )
-  for j=1, #lines,2 do
+  for j=1, indices:size(1),2 do
     print("current line = " .. tostring(j))
     --pool:addjob( 
 	--function()  
 	
-	 local linesTwo = {lines[j],lines[j+1]}
+	 local linesTwo = {lines[indices[j]],lines[indices[j+1]]}
 	local dataTargetsTables= dataLoad:getNextSequences(maxSeqLen,linesTwo,vectors,dataTable)
 	--local dataTargetsTable = loader(maxSeqLen,lines[j],vectors, dataTable)	--return dataTargetsTable
 	--end,
