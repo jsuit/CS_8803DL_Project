@@ -103,7 +103,7 @@ for i=curEpoch,maxEpoch do
     --pool:addjob( 
 	--function()  
 	
-	 local linesTwo = {lines[indices[j]],lines[indices[j+1]]}
+	local linesTwo = {lines[indices[j]],lines[indices[j+1]]}
 	local dataTargetsTables= dataLoad:getNextSequences(maxSeqLen,linesTwo,vectors,dataTable)
 	--local dataTargetsTable = loader(maxSeqLen,lines[j],vectors, dataTable)	--return dataTargetsTable
 	--end,
