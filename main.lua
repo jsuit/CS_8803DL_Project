@@ -6,33 +6,41 @@ require 'cutorch'
 torch.setheaptracking(true)
 torch.manualSeed(1)
 torch.setdefaulttensortype('torch.CudaTensor')
-local dataLoader = require 'dataLoad'
+require 'dataLoad'
 local grad_clip =5
 local word2vec = false
 local style = "random"
 local threads = require 'threads'
 local nthread = 4
-local pool = threads.Threads(
+--[[local pool = threads.Threads(
   nthread,
   function(threadid)
     require 'cunn'
   end
-)
-local trainFunc = require 'trainFunc'
-local batchSize = 1
+)]]--
+local trainFunc = require 'trainFunction'
 
 local hiddenSize = 300
-
-local dataTable = dataLoader.getData()
+local dataLoader = dataLoad()
+local dataTable = dataLoader:getData()
 assert(dataTable)
 local vocabToIndx = dataTable.vocabToIndx
+assert(dataTable.wordRepVocab)
+local wordRepVocab = dataTable.wordRepVocab
+local wordRepCount = 0
+for i,v in pairs(wordRepVocab) do
+	wordRepCount = wordRepCount + 1
+end
 local lines = dataTable.lines
 local indxToVocab = dataTable.indxToVocab
+assert(indxToVocab)
 local numVocab = #indxToVocab
 local nIndex = numVocab
-local vectors = dataLoader.getVectors(word2vec, style, hiddenSize,dataTable,dataTable)
+local vectors = dataLoader:getVectors(word2vec, style, hiddenSize,dataTable)
+assert(vectors)
 for i=1,#indxToVocab do
-  vectors[indxToVocab[i]] = vectors[indxToVocab[i]]:cuda()
+ 	 assert(indxToVocab)
+	 vectors[indxToVocab[i]] = vectors[indxToVocab[i]]:cuda()
 end
 
 
@@ -71,51 +79,38 @@ criterion:cuda()
 
 collectgarbage()
 collectgarbage()
-local adam_params = {
-  learningRate = 1e-3,
-  learningRateDecay = 1e-5,
-  weightDecay =1e-5,
-  momentum = .95
-}
-local wordOptim = {
-  learningRate = 1e-2,
-  learningRateDecay = 1e-5,
-  weightDecay =1e-5,
-  momentum = .95
-}
-
-optimState = adam_params
 local optimMethod = optim.adam
 local dateTable = os.date("*t")
 local fileName = "M2090_8Seq_ADAM.log"
-local trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. fileName ..".log")
+trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. fileName ..".log")
 --local vWrite = assert(io.open("logs/LearnedVectors_".. fileName .. ".csv","a"))
+local seenVocab={}
 local prevError = 0
 local backpropToWord= true
+local loader = dataLoader.getNextSequences
 for i=curEpoch,maxEpoch do
   print("EPOCH: " .. tostring(i))
   local timer = torch.Timer()
   --for each epoch
   --randomly shuffle lines (paragraphs)
-  torch.setdefaulttensortype('torch.FloatTensor')
-  local indices = torch.randperm(#lines)
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
-  local seenVocab={}
-  print("NUMLines = " .. tostring(indices:size(1)))
-  for j=1, indices:size(1) do
+  print("NUMLines = " ..#lines )
+  for j=1, #lines,2 do
     print("current line = " .. tostring(j))
-    local paragraphs=  lines[indices[j]]
-    pool:addjob(
-      function()
-        local dataTable= dataLoader.getNextSequences(batchsize,maxSeqLen, paragraphs,vectors)
-        return dataTable
-      end,
-      function(dataTable)
-        trainFunc(dataTable)
-      end
-    )
-    cutorch.synchronize()
+    --pool:addjob( 
+	--function()  
+	
+	 local linesTwo = {lines[j],lines[j+1]}
+	local dataTargetsTables= dataLoad:getNextSequences(maxSeqLen,linesTwo,vectors,dataTable)
+	--local dataTargetsTable = loader(maxSeqLen,lines[j],vectors, dataTable)	--return dataTargetsTable
+	--end,
+	--function(dataTargetsTable)	
+	assert(wordRepVocab)	
+	for t=1,#dataTargetsTables do
+	trainFunc(i, dataTargetsTables[t], optimMethod,model,curError,vectors,vocabToIndx,wordRepVocab,wordRepCount)	--end
+--	)		
+  	end
   end
   print("Epoch " .. tostring(i) .." took " .. timer.time().real .. " seconds")
   if prevError > curError or prevError == 0 then
