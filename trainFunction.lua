@@ -1,7 +1,7 @@
 local grad_clip = 5
 
 local adam_params = {
-  learningRate = 1e-4,
+  learningRate = 4e-3,
  -- learningRateDecay = 1e-5,
  -- weightDecay =1e-5,
 --  momentum = .95
