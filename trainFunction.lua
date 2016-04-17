@@ -1,13 +1,13 @@
 local grad_clip = 5
 
 local adam_params = {
-  learningRate = 1e-3,
-  learningRateDecay = 1e-5,
-  weightDecay =1e-5,
-  momentum = .95
+  learningRate = 1e-2,
+ -- learningRateDecay = 1e-5,
+ -- weightDecay =1e-5,
+--  momentum = .95
 }
 local wordOptim = {
-  learningRate = 1e4,
+  learningRate = 1e-2,
   learningRateDecay = 1e-5,
   weightDecay =1e-5,
   momentum = .95
@@ -48,7 +48,7 @@ local f = function(Epoch,dataTable,optimMethod,model,curError,vectors,vocabToInd
       return err, grad_params
     end
     _, E = optimMethod(eval,params, adam_params)
-    E[1] = E[1]/#(seqOfSeq[k])
+    --E[1] = E[1]/#(seqOfSeq[k])
     if adam_params.t ~= nil and adam_params.t % 2 == 0 then
       
       print("Epoch " .. tostring(Epoch) .. " iteration " .. tostring(adam_params.t))
