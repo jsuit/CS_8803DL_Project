@@ -48,11 +48,13 @@ local f = function(Epoch,dataTable,optimMethod,model,curError,vectors,vocabToInd
       return err, grad_params
     end
     _, E = optimMethod(eval,params, adam_params)
-    --E[1] = E[1]/#(seqOfSeq[k])
+    
+    local normError =  E[1]/#(seqOfSeq[k])
     if adam_params.t ~= nil and adam_params.t % 2 == 0 then
       
       print("Epoch " .. tostring(Epoch) .. " iteration " .. tostring(adam_params.t))
       print("Error " .. tostring(E[1]))
+      print("NormError ",tostring(normError))
     end
     curError = curError+ E[1]
     --if E[1] < 50 then
