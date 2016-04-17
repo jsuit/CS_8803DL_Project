@@ -55,6 +55,7 @@ local f = function(Epoch,dataTable,optimMethod,model,curError,vectors,vocabToInd
       print("Epoch " .. tostring(Epoch) .. " iteration " .. tostring(adam_params.t))
       print("Error " .. tostring(E[1]))
       print("NormError ",tostring(normError))
+      print("Seq length = " .. tostring(#(seqOfSeq[k])))
     end
     curError = curError+ E[1]
     --if E[1] < 50 then
