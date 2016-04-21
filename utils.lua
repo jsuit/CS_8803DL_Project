@@ -15,6 +15,13 @@ function lines_from(file)
   return lines
 end
 
+f.getCharMap = function()
+
+  local cToI = torch.load("charToIndx.t7")
+  local iToC = torch.load("indxToChar.t7")
+  return {charToIndx = cToI, indxToChar = iToC}
+end
+
 f.getVocabMap = function()
 
   local fileName = "06-comparativeDataSet.txt"
@@ -26,7 +33,7 @@ f.getVocabMap = function()
   local wordRepVocab = {}
   local index = 0
   print("Utils: Starting to Read Data")
-	
+
   --local t = file:readString("*a")
   require 'csvigo'
 
@@ -41,7 +48,7 @@ f.getVocabMap = function()
     print('Loading WordRep Vocab')
     wordRepVocab = lines_from("wordRepVocab06.csv")
     assert(wordRepVocab)
-   else
+  else
     for i=1,numLines do
       local wordTable = lines[i]
       for j=1,#wordTable do

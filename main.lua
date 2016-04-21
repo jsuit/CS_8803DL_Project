@@ -10,8 +10,8 @@ require 'dataLoad'
 local grad_clip =5
 local word2vec = false
 local style = "random"
-local threads = require 'threads'
-local nthread = 4
+--local threads = require 'threads'
+--local nthread = 4
 --[[local pool = threads.Threads(
   nthread,
   function(threadid)
