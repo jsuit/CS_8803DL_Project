@@ -19,10 +19,10 @@ local indxToVocab = dataTable.indxToVocab
 local lines = dataTable.lines
 
 local opt = {}
-opt.learningRate = .4
+opt.learningRate = .15
 opt.seqLen =  10 -- length of the encoded sequence
 opt.hiddenSize = hiddenSize
-opt.niter = 1000
+
 opt.vocabSize = #dataTable.indxToVocab
 local batchSize=1
 --[[ Forward coupling: Copy encoder cell and output to decoder LSTM ]]--
@@ -101,7 +101,7 @@ for i=curEpoch,maxEpoch do
       --dec:forget()
     --end
 
-    for k=1,decInSeq:size(1),8 do
+    for k=1,decInSeq:size(1),1 do
       print(k)
 
       if k+8 <= decInSeq:size(1) then
