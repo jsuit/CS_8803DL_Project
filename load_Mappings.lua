@@ -18,7 +18,7 @@ for i=1,#m do
 	        local word = words[j]
 		--local words = pl.split(word)		
 		word = word:gsub("%s+", "")	
-		if word ~="" and word ~=" " then
+		if word ~=""  then
 			--print(word.. " ")
 			if vtoI[word] == nil then
 				vtoI[word] = count

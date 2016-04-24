@@ -1,7 +1,8 @@
 require 'rnn'
 require 'optim'
 require 'dpnn'
-torch.setdefaulttensortype("torch.FloatTensor")
+torch.setnumthreads(64)
+require 'cunn'
 version = 1.2 -- refactored numerical gradient test into unit tests. Added training loop
 local word2vec 
 local style = "uniform"
@@ -20,7 +21,7 @@ local lines = dataTable.lines
 
 local opt = {}
 opt.learningRate = .15
-opt.seqLen =  10 -- length of the encoded sequence
+opt.seqLen =  12 -- length of the encoded sequence
 opt.hiddenSize = hiddenSize
 
 opt.vocabSize = #dataTable.indxToVocab
@@ -41,18 +42,18 @@ end
 
 local enc = nn.Sequential()
 local lt1 = nn.LookupTable(#indxToChar, opt.hiddenSize)
-lt1.maxOutNorm =false
+--lt1.maxOutNorm =false
 enc:add(lt1)
 enc:add(nn.SplitTable(1, 2)) -- works for both online and mini-batch mode
 local encLSTM = (nn.LSTM(opt.hiddenSize, opt.hiddenSize))
-encLSTM.usenngraph=true
+--encLSTM.usenngraph=true
 enc:add(nn.Sequencer(encLSTM:maskZero(1)))
 enc:add(nn.SelectTable(-1))
 enc = require('weight_init')(enc, 'xavier')
 --Decoder
 local dec = nn.Sequential()
 local lt = nn.LookupTable(#indxToVocab, opt.hiddenSize)
-lt.maxOutNorm = false
+--lt.maxOutNorm = false
 dec:add(lt)
 dec:add(nn.SplitTable(1, 2)) -- works for both online and mini-batch mode
 local decLSTM = nn.LSTM(opt.hiddenSize, opt.hiddenSize)
@@ -76,41 +77,52 @@ local accuracy = optim.Logger("accuracy.log")
 local curEpoch = 1
 --p1,g1 = enc:getParameters()
 --p2,g2 = dec:getParameters()
-
+--dec:cuda()
+--enc:cuda()
+--criterion:cuda()
 local maxEpoch = 200
+enc:training()
+dec:training()
 for i=curEpoch,maxEpoch do
 
 
   print("EPOCH: " .. tostring(i))
   local timer = torch.Timer()
   --for each epoch
-  torch.setdefaulttensortype('torch.FloatTensor')
   local indices = torch.randperm(#lines)
-  enc:training()
-  dec:training()
-  for j=1,indices:size(1) do
+  for j=1,indices:size(1)-1 do
     print("line " ..j)
-
-    local seqs = dataLoader:getNextSeqOfChars(batchSize, opt.seqLen,lines[indices[j]],vocabToIndx,charToIndx,indxToChar)
-
-    local decInSeq = seqs.decInSeq
-    local decOutSeq = seqs.decOutSeq
-    local stop = 8
-    enc:forget()
+    if j % 10 == 0 then
+	dec:float()
+	dec:clearState()
+	torch.save("decoder.t7",dec)
+	--dec:cuda()
+        --torch.setdefaulttensortype("torch.CudaTensor")
+    end
+    
+    local seq1 = dataLoader:getNextSeqOfChars(batchSize, opt.seqLen,lines[indices[j]],vocabToIndx,charToIndx,indxToChar)
+    local seqs2 = dataLoader:getNextSeqOfChars(batchSize, opt.seqLen,lines[indices[j+1]],vocabToIndx,charToIndx,indxToChar)
+    local seqs = {seq1,seq2}
+    for iter=1,#seqs do
+    	local decInSeq = seqs[iter].decInSeq
+    	local decOutSeq = seqs[iter].decOutSeq
+    	local stop = 12
+    	enc:forget()
     --if j % 4 == 0 then
       --dec:forget()
     --end
+     local totalError = 0
+    for k=1,decInSeq:size(1),2 do
+      print("k=" .. k.. " out of ".. decInSeq:size(1))
 
-    for k=1,decInSeq:size(1),1 do
-      print(k)
-
-      if k+8 <= decInSeq:size(1) then
-        stop = 8
+      if k+12 <= decInSeq:size(1) then
+        stop = 12
       else
         stop=decInSeq:size(1)-k+1
       end
       local decInSeqT= nn.NarrowTable(k,stop):forward(decInSeq)
       local decOutSeqT = nn.NarrowTable(k ,stop):forward(decOutSeq)
+      
       assert(decInSeqT)
       assert(decOutSeqT)
       --print(decInSeqT)
@@ -123,7 +135,7 @@ for i=curEpoch,maxEpoch do
           if word:sub(ch,ch) == nil then
             print("word == nil")
           end
-          table.insert(chars,torch.Tensor({charToIndx[word:sub(ch,ch)]}))
+          table.insert(chars,torch.Tensor({charToIndx[word:sub(ch,ch)]}):cuda())
         end
       end
 
@@ -148,19 +160,15 @@ for i=curEpoch,maxEpoch do
       --end
       --print(confusion)
 
-
       local err = criterion:forward(decOut, decOutSeqT)
       print(err)
-      trainLogger:style{['NLL'] = '-'}
-      trainLogger:add{['NLL'] =  err/#decOutSeqT}
-      trainLogger:plot()
-      collectgarbage()
+      totalError = totalError+err
       local gradOutput = criterion:backward(decOut, decOutSeqT)
       dec:backward(tensor_decInSeq, gradOutput)
       collectgarbage()
 
       backwardConnect(encLSTM, decLSTM)
-      local z = torch.Tensor(encOut):zero()
+      local z = torch.Tensor():resizeAs(encOut):zero()
       --encLSTM.gradPrevOutput
       encOut=nil
       collectgarbage()
@@ -170,10 +178,10 @@ for i=curEpoch,maxEpoch do
 
       dec:updateParameters(opt.learningRate)
       enc:updateParameters(opt.learningRate)
-      dec:maxParamNorm(2)
-      enc:maxParamNorm(2)
-      dec:gradParamClip(5)
-      enc:gradParamClip(5)
+      dec:maxParamNorm(2,2)
+      enc:maxParamNorm(2,2)
+      dec:gradParamClip(2)
+      enc:gradParamClip(2)
       
       
       --optim.adam(dfdx,p2, {learningRate=.001})
@@ -188,6 +196,9 @@ for i=curEpoch,maxEpoch do
 
 
       collectgarbage()
+    end
+      trainLogger:style{['NLL'] = '-'}
+      trainLogger:add{['NLL'] =  totalError/decInSeq:size(1)}
     end
   end
 end

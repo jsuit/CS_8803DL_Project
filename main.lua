@@ -31,6 +31,7 @@ local wordRepCount = 0
 for i,v in pairs(wordRepVocab) do
 	wordRepCount = wordRepCount + 1
 end
+wordRepCount = 150
 local lines = dataTable.lines
 local indxToVocab = dataTable.indxToVocab
 assert(indxToVocab)
@@ -68,12 +69,15 @@ model:remember('both')
 
 local batchsize = 1
 local lineNum = 1
-local maxSeqLen = 8
+local maxSeqLen = 50
 
 local maxEpoch = 20
 local curEpoch = 1
 collectgarbage()
 params, grad_params = model:getParameters()
+params:uniform(-0.08, 0.08)
+model_new = require('weight_init')(model, 'xavier')
+model = model_new
 model:cuda()
 criterion:cuda()
 
@@ -81,7 +85,7 @@ collectgarbage()
 collectgarbage()
 local optimMethod = optim.adam
 local dateTable = os.date("*t")
-local fileName = "M2090_8Seq_ADAM.log"
+local fileName = "M2090_EntireLinesSeq_ADAM.log"
 trainLogger = optim.Logger("logs/" .. dateTable.month .. "_" .. dateTable.day .. "_" .. dateTable.hour .. fileName ..".log")
 --local vWrite = assert(io.open("logs/LearnedVectors_".. fileName .. ".csv","a"))
 local seenVocab={}
@@ -98,19 +102,19 @@ for i=curEpoch,maxEpoch do
   torch.setdefaulttensortype('torch.CudaTensor')
   local curError = 0
   print("NUMLines = " ..#lines )
-  for j=1, indices:size(1),2 do
-    print("current line = " .. tostring(j))
+  model:forget()
+  for j=1, indices:size(1) do
+        
+	print("current line = " .. tostring(j))
     --pool:addjob( 
-	--function()  
-	
-	local linesTwo = {lines[indices[j]],lines[indices[j+1]]}
-	local dataTargetsTables= dataLoad:getNextSequences(maxSeqLen,linesTwo,vectors,dataTable)
-	--local dataTargetsTable = loader(maxSeqLen,lines[j],vectors, dataTable)	--return dataTargetsTable
+	--function()
+        local dataTargetsTables= dataLoad:getNextSequences(maxSeqLen,{lines[indices[j]]},vectors,dataTable)	--local dataTargetsTable = loader(maxSeqLen,lines[j],vectors, dataTable)	--return dataTargetsTable
 	--end,
 	--function(dataTargetsTable)	
 	assert(wordRepVocab)	
 	for t=1,#dataTargetsTables do
-	trainFunc(i, dataTargetsTables[t], optimMethod,model,curError,vectors,vocabToIndx,wordRepVocab,wordRepCount)	--end
+		--dataTargetsTables[t]
+	trainFunc(i,dataTargetsTables[t], optimMethod,model,curError,vectors,vocabToIndx,wordRepVocab,wordRepCount)	--end
 --	)		
   	end
   end

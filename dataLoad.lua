@@ -57,8 +57,9 @@ local getSeq = function(maxSeqLen, line,vectors,vT)
   assert(line)
   assert(vectors)
   local seqOfSequences = {}
-  local words = line --pl.split(line)
-  if words[1] == "" then
+  local words = line
+--pl.split(line)
+  if words[1] == nil or words[1] == "" then
     table.remove(words,1)
   end
   local inputWordsTable = {}
@@ -76,7 +77,6 @@ local getSeq = function(maxSeqLen, line,vectors,vT)
   local indexToVocab = vocabTable.indxToVocab
   assert(indexToVocab)
   assert(vocabToIndx)
-
   for i=1,numWords do
     if words[i] == "" then 
 
@@ -87,7 +87,7 @@ local getSeq = function(maxSeqLen, line,vectors,vT)
         target[1] = vocabToIndx["stop"]
         table.insert(targets, target:cuda()) 
       else
-        assert(vocabToIndx[words[i+1]])
+	assert(vocabToIndx[words[i+1]])
         target[1] = vocabToIndx[words[i+1]]
         table.insert(targets, target:cuda())
       end
@@ -143,7 +143,7 @@ function dataLoad:getNextSequences(maxSeqLen,lines,vectors,vT)
   seqSeqTargetsTable ={}
   for i=1,#lines do
     seqSeqTargetsTable[i] = {}
-    tempTable = getSeq(maxSeqLen,lines[i], vectors,vT)
+    local tempTable = getSeq(maxSeqLen,lines[i], vectors,vT)
     seqSeqTargetsTable[i].data=tempTable[1]
     seqSeqTargetsTable[i].targets=tempTable[2]
     seqSeqTargetsTable[i].words=tempTable[3]
@@ -191,7 +191,6 @@ end
 function dataLoad:getNextSeqOfChars(batchSize, maxSeqLen,line,vocabToIndx,charToIndx,indxToChar)
   --encInseq == inputs
   --decOutsSeq == targets
-  torch.setdefaulttensortype("torch.FloatTensor")
   local minSeqLen = 2
   --local indices = torch.randperm(#lines)
 
@@ -203,13 +202,15 @@ function dataLoad:getNextSeqOfChars(batchSize, maxSeqLen,line,vocabToIndx,charTo
   local seqOfSeq = {}
   for j=1,#line-1 do
     local word = line[j]
+    if word ~= "" then
     assert(word)
     assert(vocabToIndx[line[j+1]])
     assert(decOutput)
-   
+    assert(vocabToIndx[line[j]])   
     table.insert(decOutput,torch.Tensor({vocabToIndx[line[j+1]]}))
     table.insert(decInputSeq,torch.Tensor({vocabToIndx[line[j]]}))
     local size = #word
+    end
     --for k=1,size do
       --table.insert(chars, torch.Tensor({charToIndx[word:sub(k,k)]}))
     --end
@@ -217,6 +218,7 @@ function dataLoad:getNextSeqOfChars(batchSize, maxSeqLen,line,vocabToIndx,charTo
   table.insert(decOutput,torch.Tensor({vocabToIndx["stop"]}))
   table.insert(decInputSeq,torch.Tensor({vocabToIndx[line[#line]]}))
   local word = line[#line]
+  print(word)
   --for k=1,#word do
     --  table.insert(chars, torch.Tensor({charToIndx[word:sub(k,k)]}))
     --end
@@ -224,8 +226,9 @@ function dataLoad:getNextSeqOfChars(batchSize, maxSeqLen,line,vocabToIndx,charTo
   local wITensor = nn.JoinTable(1):forward(decInputSeq)
   local cTensor = nn.JoinTable(1):forward(chars)
   collectgarbage()
-  return {decOutSeq=wTensor,decInSeq=wITensor}
+  return {decOutSeq=wTensor:cuda(),decInSeq=wITensor:cuda()}
    
+
 
 
 
